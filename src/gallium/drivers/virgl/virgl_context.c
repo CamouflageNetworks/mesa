@@ -1416,11 +1416,24 @@ static void virgl_create_fence_fd(struct pipe_context *ctx,
                                   int fd,
                                   enum pipe_fd_type type)
 {
-   assert(type == PIPE_FD_TYPE_NATIVE_SYNC);
+   /* EggRun: glImportSemaphoreFdEXT(OPAQUE_FD) arrives as PIPE_FD_TYPE_SYNCOBJ;
+    * on virtio-gpu the fd Venus exported is a sync file, so take it as one. */
+   assert(type == PIPE_FD_TYPE_NATIVE_SYNC || type == PIPE_FD_TYPE_SYNCOBJ);
    struct virgl_screen *rs = virgl_screen(ctx->screen);
 
    if (rs->vws->cs_create_fence)
       *fence = rs->vws->cs_create_fence(rs->vws, fd);
+}
+
+/* glSignalSemaphoreEXT: nothing to signal on virtio-gpu; the fence a consumer
+ * would wait on is the one the next submit produces. Flush so it does. */
+static void virgl_fence_server_signal(struct pipe_context *ctx,
+                                      struct pipe_fence_handle *fence,
+                                      uint64_t value)
+{
+   (void)fence;
+   (void)value;
+   ctx->flush(ctx, NULL, 0);
 }
 
 static void virgl_fence_server_sync(struct pipe_context *ctx,
@@ -1802,6 +1815,7 @@ struct pipe_context *virgl_context_create(struct pipe_screen *pscreen,
    vctx->base.blit =  virgl_blit;
    vctx->base.create_fence_fd = virgl_create_fence_fd;
    vctx->base.fence_server_sync = virgl_fence_server_sync;
+   vctx->base.fence_server_signal = virgl_fence_server_signal;
 
    vctx->base.set_shader_buffers = virgl_set_shader_buffers;
    vctx->base.set_hw_atomic_buffers = virgl_set_hw_atomic_buffers;

@@ -1146,8 +1146,13 @@ vn_physical_device_init_external_semaphore_handles(
 
    if (physical_dev->instance->renderer->info.has_external_sync) {
 #if !DETECT_OS_WINDOWS
+      /* EggRun: also claim OPAQUE_FD for binary semaphores. The export is the
+       * same sync file as SYNC_FD (vn_GetSemaphoreFdKHR); consumers such as
+       * Firefox's WebGPU shared-texture swap chain gate on OPAQUE_FD and hand
+       * the fd to GL_EXT_semaphore_fd, where virgl takes it as a sync file. */
       physical_dev->external_binary_semaphore_handles =
-         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT |
+         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
    }
 }
@@ -1173,7 +1178,7 @@ vn_physical_device_get_native_extensions(
    if (physical_dev->instance->renderer->info.has_external_sync &&
        physical_dev->renderer_sync_fd.semaphore_importable &&
        physical_dev->renderer_sync_fd.semaphore_exportable) {
-      if (physical_dev->external_binary_semaphore_handles ==
+      if (physical_dev->external_binary_semaphore_handles &
           VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT) {
          exts->KHR_external_semaphore_fd = true;
       }

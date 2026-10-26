@@ -2417,9 +2417,12 @@ vn_ImportSemaphoreFdKHR(
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_semaphore *sem =
       vn_semaphore_from_handle(pImportSemaphoreFdInfo->semaphore);
+   /* EggRun: an OPAQUE_FD semaphore fd is a sync file too */
    ASSERTED const bool sync_file =
       pImportSemaphoreFdInfo->handleType ==
-      VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT ||
+      pImportSemaphoreFdInfo->handleType ==
+         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
    const int fd = pImportSemaphoreFdInfo->fd;
 
    assert(sync_file);
@@ -2444,8 +2447,10 @@ vn_GetSemaphoreFdKHR(VkDevice device,
    VN_TRACE_FUNC();
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_semaphore *sem = vn_semaphore_from_handle(pGetFdInfo->semaphore);
+   /* EggRun: OPAQUE_FD is exported as the same sync file */
    const bool sync_file =
-      pGetFdInfo->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+      pGetFdInfo->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT ||
+      pGetFdInfo->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
    struct vn_sync_payload *payload = sem->payload;
 
    assert(sync_file);

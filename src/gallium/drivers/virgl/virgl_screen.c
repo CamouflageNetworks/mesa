@@ -469,6 +469,9 @@ virgl_init_screen_caps(struct virgl_screen *vscreen)
    caps->texture_shadow_lod =
       vscreen->caps.caps.v2.capability_bits_v2 & VIRGL_CAP_V2_TEXTURE_SHADOW_LOD;
    caps->native_fence_fd = vscreen->vws->supports_fences;
+   /* EggRun: GL_EXT_semaphore(_fd) on top of the same in-fence path, so a GL
+    * consumer can wait for a Venus (Vulkan) producer's exported sync file. */
+   caps->fence_signal = vscreen->vws->supports_fences;
    caps->dest_surface_srgb_control =
       (vscreen->caps.caps.v2.capability_bits & VIRGL_CAP_SRGB_WRITE_CONTROL) ||
       (vscreen->caps.caps.v2.host_feature_check_version < 1);
