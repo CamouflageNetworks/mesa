@@ -510,6 +510,9 @@ vn_wsi_clone_present_info(struct vn_device *dev, const VkPresentInfoKHR *pi)
          break;
       case VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR:
          pr = (void *)pnext;
+         /* drop pr when pr->pRegions is NULL */
+         if (!pr->pRegions)
+            pr = NULL;
          break;
       case VK_STRUCTURE_TYPE_PRESENT_ID_KHR:
          id = (void *)pnext;
@@ -545,6 +548,7 @@ vn_wsi_clone_present_info(struct vn_device *dev, const VkPresentInfoKHR *pi)
    /* VK_KHR_incremental_present */
    VkPresentRegionsKHR *_pr;
    VkPresentRegionKHR *_pr_regions;
+   VkRectLayerKHR *_pr_rects;
 
    /* VK_KHR_present_id */
    VkPresentIdKHR *_id;
@@ -587,6 +591,15 @@ vn_wsi_clone_present_info(struct vn_device *dev, const VkPresentInfoKHR *pi)
       vk_multialloc_add(&ma, &_pr, __typeof__(*_pr), 1);
       vk_multialloc_add(&ma, &_pr_regions, __typeof__(*_pr_regions),
                         pr->swapchainCount);
+
+      /* The rectangle arrays live on the caller's stack (GTK4 g_alloca's
+       * them for vkQueuePresentKHR); the async present thread reads them
+       * after the call returned. Copy them too (upstream main does). */
+      uint32_t rect_count = 0;
+      for (uint32_t i = 0; i < pr->swapchainCount; i++)
+         rect_count += pr->pRegions[i].rectangleCount;
+
+      vk_multialloc_add(&ma, &_pr_rects, __typeof__(*_pr_rects), rect_count);
    }
    if (id) {
       vk_multialloc_add(&ma, &_id, __typeof__(*_id), 1);
@@ -645,6 +658,15 @@ vn_wsi_clone_present_info(struct vn_device *dev, const VkPresentInfoKHR *pi)
 
    if (pr) {
       typed_memcpy(_pr_regions, pr->pRegions, pr->swapchainCount);
+
+      for (uint32_t i = 0; i < pr->swapchainCount; i++) {
+         VkPresentRegionKHR *_r = &_pr_regions[i];
+         if (_r->rectangleCount > 0) {
+            typed_memcpy(_pr_rects, _r->pRectangles, _r->rectangleCount);
+            _r->pRectangles = _pr_rects;
+            _pr_rects += _r->rectangleCount;
+         }
+      }
 
       *_pr = (VkPresentRegionsKHR){
          .sType = VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR,
